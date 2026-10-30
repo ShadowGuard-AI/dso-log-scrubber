@@ -1,3 +1,5 @@
+![Banner](banner.png)
+
 # dso-log-scrubber
 Removes or obfuscates sensitive information from log files to prevent data leaks. Supports customizable patterns for different log formats. - Focused on Tools for sanitizing and obfuscating sensitive data within text files and structured data formats
 
