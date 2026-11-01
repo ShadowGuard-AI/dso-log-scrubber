@@ -104,6 +104,9 @@ class LogScrubber:
                 self.encoding = self._detect_encoding()
                 logging.info(f"Detected encoding: {self.encoding}")
 
+            # errors='ignore' on the read: bytes the detected encoding
+            # cannot decode are dropped from the line silently, so a
+            # scrubbed file can lose characters that no pattern touched.
             with open(self.input_file, 'r', encoding=self.encoding, errors='ignore') as infile:
                 lines = infile.readlines()
 
@@ -116,6 +119,15 @@ class LogScrubber:
                     self.lines_changed += 1
                 scrubbed_lines.append(sanitized_line)
 
+            # This zero check counts substitutions as subn reports them,
+            # and subn counts zero width matches: a pattern like z* that
+            # can match the empty string scores dozens of substitutions on
+            # a file that contains no z at all, passes this check, and
+            # writes output byte identical to the input with a success
+            # summary. I verified exactly that run: 47 substitutions
+            # across 0 changed lines, exit success. The lines_changed
+            # figure in the summary is the honest signal; the substitution
+            # count alone is not.
             if self.total_substitutions == 0:
                 logging.error("Nothing was scrubbed: no pattern matched any line in the input file.")
                 return False
@@ -161,6 +173,14 @@ class LogScrubber:
         sanitized_line = line
         total = 0
         for pattern in compiled_patterns:
+            # The replacement is chosen once per pattern per line, before
+            # the substitution runs, so under a fake option every match of
+            # one pattern in one line receives the same fake value, and a
+            # fake value is drawn and discarded on lines the pattern never
+            # matches. The replacement also goes to subn as a template,
+            # not a literal: backslash sequences in a --replace_with value
+            # are read as group references, which is useful when intended
+            # and a surprise when the text was meant literally.
             if self.replace_with is None:
                 replacement = '' # Delete the matched text
             elif self.replace_with in FAKE_OPTIONS:
